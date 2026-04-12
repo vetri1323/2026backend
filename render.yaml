@@ -1,0 +1,17 @@
+services:
+  # Web Service
+  - type: web
+    name: G2026-backend
+    runtime: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/health
+    nodeVersion: "18.17.0"
