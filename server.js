@@ -14,7 +14,7 @@ const allowedOrigins = [
   'http://localhost:4174',
   'http://127.0.0.1:5173',
   'https://g2026-frontend.onrender.com',
-  'https://lighthearted-dieffenbachia-95b49a.netlify.app' // ✅ ADD THIS
+  'https://celebrated-kashata-1a90d0.netlify.app' // Updated frontend URL
 ];
 
 // ✅ CORS FIX (PRODUCTION READY)
