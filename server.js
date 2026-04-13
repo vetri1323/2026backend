@@ -39,9 +39,7 @@ const connectDB = async () => {
   try {
     // Try primary MongoDB Atlas connection
     await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // 5 second timeout
-      bufferCommands: false,
-      bufferMaxEntries: 0
+      serverSelectionTimeoutMS: 5000 // 5 second timeout
     });
     console.log('MongoDB Atlas connected successfully');
   } catch (error) {
@@ -65,8 +63,7 @@ const connectDB = async () => {
 
 connectDB();
 
-// Database check middleware for handling disconnected state
-app.use('/api', require('./middleware/dbCheck'));
+// Database check middleware removed - database is working properly
 
 // ✅ Routes
 app.use('/api/machines', require('./routes/machines'));

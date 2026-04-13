@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 
 // Middleware to check database connection status and provide mock data if needed
 const dbCheck = (req, res, next) => {
+  console.log(`=== DB CHECK: ${req.method} ${req.path} ===`);
+  console.log('MongoDB connection state:', mongoose.connection.readyState);
+  console.log('MongoDB connection states: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting');
+  
   if (mongoose.connection.readyState !== 1) {
     // Database not connected, provide mock data
     console.log('Database not connected, providing mock data for:', req.path);
