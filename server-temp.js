@@ -9,20 +9,18 @@ const PORT = process.env.PORT || 5001;
 // ✅ ALLOWED FRONTENDS (IMPORTANT)
 const allowedOrigins = [
   'http://localhost:5173',
-  'http://localhost:5174',
   'http://localhost:3000',
   'http://localhost:4173',
   'http://localhost:4174',
   'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
   'https://g2026-frontend.onrender.com',
-  'https://celebrated-kashata-1a90d0.netlify.app' // Updated frontend URL
+  'https://celebrated-kashata-1a90d0.netlify.app'
 ];
 
 // ✅ CORS FIX (PRODUCTION READY)
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow Postman / mobile apps
+    if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -39,16 +37,14 @@ app.use('/uploads', express.static('uploads'));
 // MongoDB Connection with fallback handling
 const connectDB = async () => {
   try {
-    // Try primary MongoDB Atlas connection
     await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000 // 5 second timeout
+      serverSelectionTimeoutMS: 5000
     });
     console.log('MongoDB Atlas connected successfully');
   } catch (error) {
     console.warn('MongoDB Atlas connection failed, trying local MongoDB...', error.message);
     
     try {
-      // Fallback to local MongoDB
       await mongoose.connect('mongodb://localhost:27017/machinery_maintenance_local', {
         serverSelectionTimeoutMS: 3000
       });
@@ -56,16 +52,11 @@ const connectDB = async () => {
     } catch (localError) {
       console.warn('Local MongoDB connection failed, running without database...', localError.message);
       console.log('API will run with mock responses and localStorage fallbacks');
-      
-      // Continue without database connection
-      // Routes will need to handle the disconnected state
     }
   }
 };
 
 connectDB();
-
-// Database check middleware removed - database is working properly
 
 // ✅ Routes
 app.use('/api/machines', require('./routes/machines'));
@@ -92,7 +83,7 @@ app.get('/', (req, res) => {
   res.json({ message: 'API running ✅' });
 });
 
-// ✅ Health check (Render uses this)
+// ✅ Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
@@ -106,7 +97,6 @@ const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-// Handle server errors
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use. Please:`);
