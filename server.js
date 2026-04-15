@@ -85,7 +85,6 @@ app.use('/api/stock-management', require('./routes/stock-management'));
 app.use('/api/general-categories', require('./routes/general-categories'));
 app.use('/api/profit-loss', require('./routes/profit-loss'));
 app.use('/api/staff', require('./routes/staff'));
-app.use('/api/bookmarks', require('./routes/bookmarks'));
 
 // ✅ Test route
 app.get('/', (req, res) => {
