@@ -14,7 +14,7 @@ const expenseSchema = new mongoose.Schema({
   subCategoryId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ExpenseSubCategory',
-    required: true
+    required: false
   },
   amount: {
     type: Number,

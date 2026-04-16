@@ -80,9 +80,9 @@ router.post('/', auth, async (req, res) => {
     } = req.body;
     
     // Validate required fields
-    if (!categoryId || !subCategoryId || !amount) {
+    if (!categoryId || !amount) {
       return res.status(400).json({ 
-        message: 'Missing required fields: categoryId, subCategoryId, amount' 
+        message: 'Missing required fields: categoryId, amount' 
       });
     }
     
@@ -93,7 +93,7 @@ router.post('/', auth, async (req, res) => {
     const expense = new Expense({
       expenseNo,
       categoryId,
-      subCategoryId,
+      subCategoryId: subCategoryId || null,
       amount: parseFloat(amount),
       date: date ? new Date(date) : new Date(),
       description,
