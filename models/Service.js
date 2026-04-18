@@ -10,6 +10,10 @@ const serviceSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  url: {
+    type: String,
+    trim: true
+  },
   isActive: {
     type: Boolean,
     default: true
