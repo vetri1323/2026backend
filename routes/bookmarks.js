@@ -6,11 +6,6 @@ const mongoose = require('mongoose');
 // Get all bookmarks with pagination and filtering
 router.get('/', async (req, res) => {
   try {
-    // Check if database is connected
-    if (mongoose.connection.readyState !== 1) {
-      return res.json({ bookmarks: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
-    }
-
     const { page = 1, limit = 50, category, search, favorite } = req.query;
     const skip = (page - 1) * limit;
     
@@ -46,8 +41,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching bookmarks:', error);
-    // Return empty result instead of error to prevent frontend crashes
-    res.json({ bookmarks: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
+    res.status(500).json({ message: 'Error fetching bookmarks', error: error.message });
   }
 });
 
@@ -74,11 +68,6 @@ router.get('/:id', async (req, res) => {
 // Create new bookmark
 router.post('/', async (req, res) => {
   try {
-    // Check if database is connected
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ message: 'Database not connected' });
-    }
-
     const { serviceName, url, description, category, tags, favicon, color } = req.body;
     
     if (!serviceName || !url) {
@@ -239,18 +228,12 @@ router.put('/reorder', async (req, res) => {
 // Get categories
 router.get('/categories/list', async (req, res) => {
   try {
-    // Check if database is connected
-    if (mongoose.connection.readyState !== 1) {
-      return res.json([]);
-    }
-
     const categories = await Bookmark.distinct('category');
     const filteredCategories = categories.filter(cat => cat && cat.trim() !== '');
     res.json(filteredCategories.sort());
   } catch (error) {
     console.error('Error fetching categories:', error);
-    // Return empty array instead of error to prevent frontend crashes
-    res.json([]);
+    res.status(500).json({ message: 'Error fetching categories', error: error.message });
   }
 });
 
