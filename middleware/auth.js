@@ -1,12 +1,13 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-module.exports = function(req, res, next) {
+module.exports = async function(req, res, next) {
   // Get token from header
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
-  // Check if it's the mock token for development
+  // Check if it's the mock token for development (temporary fallback)
   if (token === 'mock-jwt-token') {
     console.log('Using mock authentication for development');
     // Add a mock user to the request with proper ObjectId format
@@ -30,8 +31,31 @@ module.exports = function(req, res, next) {
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Add user from payload
-    req.user = decoded;
+    // Get user from database to ensure they still exist and are active
+    const user = await User.findById(decoded.userId);
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is inactive'
+      });
+    }
+
+    // Add user from payload with additional info
+    req.user = {
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions
+    };
+    
     next();
   } catch (error) {
     console.error('Auth error:', error);

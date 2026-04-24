@@ -25,13 +25,10 @@ const userSchema = new mongoose.Schema({
   },
   pin: {
     type: String,
-    required: true,
+    required: false,
+    minlength: 4,
+    maxlength: 4,
     match: [/^\d{4}$/, 'PIN must be exactly 4 digits']
-  },
-  role: {
-    type: String,
-    enum: ['admin', 'staff'],
-    default: 'staff'
   },
   fullName: {
     type: String,
@@ -41,11 +38,19 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
+    required: false,
     trim: true,
-    maxlength: 20
+    match: [/^[\d\s\-\+\(\)]+$/, 'Please enter a valid phone number']
+  },
+  role: {
+    type: String,
+    required: true,
+    enum: ['admin', 'staff', 'manager'],
+    default: 'staff'
   },
   status: {
     type: String,
+    required: true,
     enum: ['active', 'inactive'],
     default: 'active'
   },
@@ -69,28 +74,73 @@ const userSchema = new mongoose.Schema({
     settings: {
       type: Boolean,
       default: false
+    },
+    machines: {
+      type: Boolean,
+      default: false
+    },
+    reports: {
+      type: Boolean,
+      default: false
     }
   },
   lastLogin: {
-    type: Date
-  },
-  createdAt: {
     type: Date,
-    default: Date.now
+    default: null
   },
-  updatedAt: {
+  loginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lockUntil: {
     type: Date,
-    default: Date.now
+    default: null
+  },
+  passwordResetToken: {
+    type: String,
+    default: null
+  },
+  passwordResetExpires: {
+    type: Date,
+    default: null
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  emailVerificationToken: {
+    type: String,
+    default: null
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      delete ret.password;
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      delete ret.emailVerificationToken;
+      delete ret.loginAttempts;
+      delete ret.lockUntil;
+      return ret;
+    }
+  }
 });
 
-// Hash password before saving
+// Indexes for performance
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ status: 1 });
+userSchema.index({ role: 1 });
+
+// Virtual for checking if account is locked
+userSchema.virtual('isLocked').get(function() {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Pre-save middleware to hash password
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
-  }
+  if (!this.isModified('password')) return next();
   
   try {
     const salt = await bcrypt.genSalt(12);
@@ -101,93 +151,104 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Compare password method
+// Instance method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error('Password comparison failed');
+  }
 };
 
-// Compare PIN method
-userSchema.methods.comparePin = async function(candidatePin) {
-  return candidatePin === this.pin;
+// Instance method to increment login attempts
+userSchema.methods.incLoginAttempts = function() {
+  // If we have a previous lock that has expired, restart at 1
+  if (this.lockUntil && this.lockUntil < Date.now()) {
+    return this.updateOne({
+      $unset: { lockUntil: 1 },
+      $set: { loginAttempts: 1 }
+    });
+  }
+  
+  const updates = { $inc: { loginAttempts: 1 } };
+  
+  // Lock account after 5 failed attempts for 2 hours
+  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
+    updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 hours
+  }
+  
+  return this.updateOne(updates);
 };
 
-// Update last login
-userSchema.methods.updateLastLogin = function() {
-  this.lastLogin = new Date();
-  return this.save();
-};
-
-// Get user permissions as array
-userSchema.methods.getPermissions = function() {
-  const permissions = [];
-  Object.keys(this.permissions.toObject()).forEach(key => {
-    if (this.permissions[key]) {
-      permissions.push(key);
-    }
-  });
-  return permissions;
-};
-
-// Check if user has specific permission
-userSchema.methods.hasPermission = function(permission) {
-  return this.permissions[permission] === true;
-};
-
-// Static method to find user by email or username
-userSchema.statics.findByEmailOrUsername = function(identifier) {
-  return this.findOne({
+// Static method to find by credentials
+userSchema.statics.findByCredentials = async function(username, password) {
+  const user = await this.findOne({
     $or: [
-      { email: identifier.toLowerCase() },
-      { username: identifier }
-    ]
+      { username: username },
+      { email: username }
+    ],
+    status: 'active'
   });
+
+  if (!user) {
+    throw new Error('Unable to login - user not found');
+  }
+
+  if (user.isLocked) {
+    throw new Error('Account locked due to too many failed login attempts');
+  }
+
+  const isMatch = await user.comparePassword(password);
+  if (!isMatch) {
+    await user.incLoginAttempts();
+    throw new Error('Unable to login - invalid credentials');
+  }
+
+  // Reset login attempts on successful login
+  if (user.loginAttempts > 0) {
+    await user.updateOne({
+      $unset: { loginAttempts: 1, lockUntil: 1 },
+      $set: { lastLogin: new Date() }
+    });
+  } else {
+    await user.updateOne({
+      $set: { lastLogin: new Date() }
+    });
+  }
+
+  return user;
 };
 
-// Static method to create admin user
-userSchema.statics.createAdmin = function(userData) {
-  return this.create({
-    ...userData,
+// Static method to create default admin user
+userSchema.statics.createDefaultAdmin = async function() {
+  const existingAdmin = await this.findOne({ role: 'admin' });
+  if (existingAdmin) {
+    return existingAdmin;
+  }
+
+  const defaultAdmin = new this({
+    username: 'admin',
+    email: 'admin@ganesa.com',
+    password: 'admin123',
+    pin: '1234',
+    fullName: 'System Administrator',
+    phone: '',
     role: 'admin',
+    status: 'active',
     permissions: {
       dashboard: true,
       customers: true,
       reminders: true,
       billing: true,
-      settings: true
-    }
+      settings: true,
+      machines: true,
+      reports: true
+    },
+    emailVerified: true
   });
+
+  return await defaultAdmin.save();
 };
-
-// Virtual for user profile
-userSchema.virtual('profile').get(function() {
-  return {
-    id: this._id,
-    username: this.username,
-    email: this.email,
-    fullName: this.fullName,
-    role: this.role,
-    phone: this.phone,
-    status: this.status,
-    permissions: this.getPermissions(),
-    createdAt: this.createdAt,
-    lastLogin: this.lastLogin
-  };
-});
-
-// Hide sensitive fields when converting to JSON
-userSchema.methods.toJSON = function() {
-  const user = this.toObject();
-  delete user.password;
-  delete user.pin;
-  return user;
-};
-
-// Index for better performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ status: 1 });
-userSchema.index({ createdAt: -1 });
 
 const User = mongoose.model('User', userSchema);
 
